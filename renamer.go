@@ -169,27 +169,27 @@ func buildOperations() OperationCollection {
 				}
 			},
 		},
-		Operation{
-			cmdline: CmdlineRef{
-				longOpt:     "--regsub",
-				shortOpt:    "-x",
-				args:        words("<pattern>", "<replacement>"),
-				description: "replaces the first match of <pattern> with <replacement>",
-			},
-			factory: func(args []string) NamedOp {
-				re := regexp.MustCompile(args[0])
-				return NamedOp{
-					name: named("replace first by regex", args[0]),
-					action: func(input string) string {
-						submatch := re.FindStringIndex(input)
-						if submatch != nil {
-							return string(re.ExpandString([]byte{}, args[1], input, submatch))
-						}
-						return input
-					},
-				}
-			},
-		},
+		//Operation{
+		//	cmdline: CmdlineRef{
+		//		longOpt:     "--regsub",
+		//		shortOpt:    "-x",
+		//		args:        words("<pattern>", "<replacement>"),
+		//		description: "replaces the first match of <pattern> with <replacement>",
+		//	},
+		//	factory: func(args []string) NamedOp {
+		//		re := regexp.MustCompile(args[0])
+		//		return NamedOp{
+		//			name: named("replace first by regex", args[0]),
+		//			action: func(input string) string {
+		//				submatch := re.FindStringIndex(input)
+		//				if submatch != nil {
+		//					return string(re.ExpandString([]byte{}, args[1], input, submatch))
+		//				}
+		//				return input
+		//			},
+		//		}
+		//	},
+		//},
 		Operation{
 			cmdline: CmdlineRef{
 				longOpt:     "--regsub-all",
@@ -475,7 +475,7 @@ func main() {
 		if options.verbose {
 			fmt.Printf(" => %s\n", file)
 		}
-		if file != args[k] {
+		if file != args[k] && file != "" {
 			renames = append(renames, Rename{args[k], file})
 		}
 	}
