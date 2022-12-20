@@ -18,7 +18,7 @@ type CmdlineRef struct {
 
 type NamedOp struct {
 	name   string
-	action func(string) string
+	action func(string, Options) string
 }
 type Operation struct {
 	cmdline CmdlineRef
@@ -29,11 +29,12 @@ type Modifier struct {
 	setup   func(string) (string, NamedOp)
 }
 type Options struct {
-	verbose bool
-	dryRun  bool
-	help    bool
-	yes     bool
-	copy    bool
+	verbose    bool
+	dryRun     bool
+	help       bool
+	yes        bool
+	copy       bool
+	ignoreCase bool
 }
 type Option struct {
 	cmdline CmdlineRef
@@ -86,6 +87,9 @@ func shorted(input string) string {
 func named(name, arg string) string {
 	return fmt.Sprintf("%s %s", name, shorted(arg))
 }
+func IndexOfIgnoreCase(input string, substr string) int {
+	return strings.Index(strings.ToLower(input), strings.ToLower(substr))
+}
 
 func buildOperations() OperationCollection {
 	return append([]Operation{},
@@ -99,8 +103,17 @@ func buildOperations() OperationCollection {
 			factory: func(args []string) NamedOp {
 				return NamedOp{
 					name: named("remove first", args[0]),
-					action: func(input string) string {
-						return strings.Replace(input, args[0], "", 1)
+					action: func(input string, opts Options) string {
+						if opts.ignoreCase {
+							start := IndexOfIgnoreCase(input, args[0])
+							if start > -1 {
+								return input[0:start] + input[start+len(args[0]):]
+							} else {
+								return input
+							}
+						} else {
+							return strings.Replace(input, args[0], "", 1)
+						}
 					},
 				}
 			},
@@ -115,8 +128,15 @@ func buildOperations() OperationCollection {
 			factory: func(args []string) NamedOp {
 				return NamedOp{
 					name: named("remove all", args[0]),
-					action: func(input string) string {
-						return strings.ReplaceAll(input, args[0], "")
+					action: func(input string, opts Options) string {
+						if opts.ignoreCase {
+							for start := IndexOfIgnoreCase(input, args[0]); start > -1; start = IndexOfIgnoreCase(input, args[0]) {
+								input = input[0:start] + input[start+len(args[0]):]
+							}
+							return input
+						} else {
+							return strings.ReplaceAll(input, args[0], "")
+						}
 					},
 				}
 			},
@@ -131,7 +151,7 @@ func buildOperations() OperationCollection {
 			factory: func(args []string) NamedOp {
 				return NamedOp{
 					name: named("append", args[0]),
-					action: func(input string) string {
+					action: func(input string, _ Options) string {
 						return fmt.Sprintf("%s%s", input, args[0])
 					},
 				}
@@ -147,7 +167,7 @@ func buildOperations() OperationCollection {
 			factory: func(args []string) NamedOp {
 				return NamedOp{
 					name: named("replace first", args[0]),
-					action: func(input string) string {
+					action: func(input string, _ Options) string {
 						return strings.Replace(input, args[0], args[1], 1)
 					},
 				}
@@ -163,7 +183,7 @@ func buildOperations() OperationCollection {
 			factory: func(args []string) NamedOp {
 				return NamedOp{
 					name: named("replace all", args[0]),
-					action: func(input string) string {
+					action: func(input string, _ Options) string {
 						return strings.ReplaceAll(input, args[0], args[1])
 					},
 				}
@@ -201,7 +221,7 @@ func buildOperations() OperationCollection {
 				re := regexp.MustCompile(args[0])
 				return NamedOp{
 					name: named("replace all by regex", args[0]),
-					action: func(input string) string {
+					action: func(input string, _ Options) string {
 						return re.ReplaceAllString(input, args[1])
 					},
 				}
@@ -217,7 +237,7 @@ func buildOperations() OperationCollection {
 			factory: func(args []string) NamedOp {
 				return NamedOp{
 					name: "trim",
-					action: func(input string) string {
+					action: func(input string, _ Options) string {
 						return strings.Trim(input, " \t")
 					},
 				}
@@ -244,7 +264,7 @@ func buildModifiers() ModifierCollection {
 				}
 				return basename, NamedOp{
 					name: named("preserve extension", extension),
-					action: func(input string) string {
+					action: func(input string, _ Options) string {
 						return fmt.Sprintf("%s%s", input, extension)
 					},
 				}
@@ -307,6 +327,17 @@ func buildOptions() OptionCollection {
 			},
 			enable: func(opts Options) Options {
 				opts.copy = true
+				return opts
+			},
+		},
+		Option{
+			cmdline: CmdlineRef{
+				longOpt:     "--ignore-case",
+				shortOpt:    "-i",
+				description: "ignore case for removals",
+			},
+			enable: func(opts Options) Options {
+				opts.ignoreCase = true
 				return opts
 			},
 		},
@@ -460,14 +491,14 @@ func main() {
 			unwrap = append(unwrap, unwrapper)
 		}
 		for _, op := range pipeline {
-			file = op.action(file)
+			file = op.action(file, options)
 			if options.verbose {
 				fmt.Printf(" %s -> %s\n", op.name, file)
 			}
 		}
 		file = strings.Trim(file, " \t")
 		for i := len(unwrap) - 1; i >= 0; i-- {
-			file = unwrap[i].action(file)
+			file = unwrap[i].action(file, options)
 			if options.verbose {
 				fmt.Printf(" %s -> %s\n", unwrap[i].name, file)
 			}
